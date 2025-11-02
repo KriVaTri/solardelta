@@ -75,7 +75,7 @@ class SolarCoverageSensor(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity
         return {
             "identifiers": {(DOMAIN, self._entry_id)},
             "name": "SolarDelta",
-            "manufacturer": "Custom",
+            "manufacturer": "KriVaTri",
             "model": "SolarDelta",
         }
 
@@ -179,7 +179,7 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
         return {
             "identifiers": {(DOMAIN, self._entry_id)},
             "name": "SolarDelta",
-            "manufacturer": "Custom",
+            "manufacturer": "KriVaTri",
             "model": "SolarDelta",
         }
 
