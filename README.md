@@ -7,6 +7,7 @@ Home Assistant custom integration that compares solar production with a device�
 - Rounding: values are shown with 1 decimal, except exact 0% or 100% (no decimals).
 - Negative power values are treated as 0.
 - Conditions: calculation only occurs when both status and trigger entities match the configured strings.
+- This integration is mainly focused on EV charging consumption, but can be used for other devices. In case of EV charging, the status sensor would be the charging status of the EV or wallbox, this is usually "charging". The trigger sensor can be a sensor detecting if the vehicle is connected to the wallbox, this is usually "on". These strings can be anything but they are case sensitive and must match the sensor or binary_sensor status string exactly. If no trigger sensor exist, the status sensor can be used and its string instead.
 
 Configuration (via UI):
 - Name: a custom label for this entry; the entity will be named “solardelta <Name>”.
@@ -26,12 +27,12 @@ Behavior:
 - Units (W vs kW) are normalized automatically.
 
 Average sensors (persistent):
-- solardelta <Name> avg session: time‑weighted average; holds when conditions drop; resets when the trigger goes to the first trigger string provided during configuration e.g. "on" from any known state or second trigger string provided by the user.
+- solardelta <Name> avg session: time‑weighted average; holds when conditions drop; resets when the trigger changes to the first trigger string (provided during configuration) e.g. "on" from any known state.
 - solardelta <Name> avg year: time‑weighted average; holds when conditions drop; auto‑resets on New Year (local time). Also resettable via service solardelta.reset_avg_year.
 - solardelta <Name> avg lifetime: time‑weighted average; holds when conditions drop; never resets. Resettable via service solardelta.reset_avg_lifetime.
 - If an entry or the integration has been deleted, reinstalling the integration and/or an entry with the same name, will restore its previous data.
 
-Active duration attribute (on each average sensor):
+Active duration attributes (on each average sensor):
 - What it is: the total elapsed “active” time (in seconds and DD:HH:MM) that contributed to that sensor’s average.
 How it behaves: increases only while conditions are allowed (the same periods used to compute the average), and resets exactly when that average resets (session trigger, New Year, or the relevant reset service).
 - What it is not: it’s not wall‑clock time since the sensor was created; periods when conditions aren’t met do not count.
