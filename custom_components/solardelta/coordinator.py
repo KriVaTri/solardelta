@@ -150,12 +150,15 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, payload)
 
     async def async_config_entry_first_refresh(self) -> None:
-        """Set up listeners and publish initial data."""
-        # Subscribe to relevant entities
+        """Set up listeners and perform initial refresh."""
+
+        # When periodic updates are configured (scan_interval > 0), do not subscribe to
+        # state changes; rely on the DataUpdateCoordinator schedule only.
+        # When scan_interval == 0, operate in event-driven mode and recompute on changes.
         watch = [self._solar_entity, self._device_entity, self._status_entity, self._trigger_entity]
         watch = [e for e in watch if e]
 
-        if watch:
+        if not self._periodic and watch:
             def _on_change(event):
                 # Any relevant state change triggers recompute
                 self._publish_now()
@@ -163,10 +166,8 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             unsub = async_track_state_change_event(self.hass, watch, _on_change)
             self._unsub.append(unsub)
 
-        # Initial publish so sensors have values without waiting
-        self._publish_now()
-
-        # If periodic is configured, Coordinator will call _async_update_data on schedule
+        # Perform one initial refresh so sensors have values, and if periodic is set,
+        # the coordinator will continue refreshing at the configured interval.
         await super().async_config_entry_first_refresh()
 
     async def _async_update_data(self) -> dict[str, Any]:
