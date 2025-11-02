@@ -1,0 +1,43 @@
+{
+  "title": "SolarDelta",
+  "config": {
+    "step": {
+      "user": {
+        "title": "SolarDelta",
+        "description": "Choose a name and select your sensors.",
+        "data": {
+          "name": "Name",
+          "solar_entity": "Solar sensor",
+          "device_entity": "Device sensor",
+          "status_entity": "Status entity (sensor or binary_sensor)",
+          "status_string": "Status match (string)",
+          "trigger_entity": "Trigger entity (sensor or binary_sensor)",
+          "trigger_string_1": "Trigger match 1 (string, required)",
+          "trigger_string_2": "Trigger match 2 (string, optional)",
+          "scan_interval": "Scan interval (seconds, 0 = disabled)"
+        }
+      }
+    },
+    "error": {
+      "name_in_use": "An entry with this name already exists. Please choose a different name."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SolarDelta options",
+        "description": "Change sensors/strings and scan interval for:\n{entry_name}",
+        "data": {
+          "solar_entity": "Solar sensor",
+          "device_entity": "Device sensor",
+          "status_entity": "Status entity (sensor or binary_sensor)",
+          "status_string": "Status match (string)",
+          "trigger_entity": "Trigger entity (sensor or binary_sensor)",
+          "trigger_string_1": "Trigger match 1 (string, required)",
+          "trigger_string_2": "Trigger match 2 (string, optional)",
+          "scan_interval": "Scan interval (seconds, 0 = disabled)"
+        }
+      }
+    }
+  }
+}
