@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+from datetime import timedelta
 
 import homeassistant.util.dt as dt_util
 from homeassistant.components.sensor import SensorEntity
@@ -103,7 +104,7 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
         self._store_key = f"{DOMAIN}_name_{self._name_slug}_{self._file_suffix}.json"
 
         self._sum_cov_dt: float = 0.0  # coverage * seconds
-        self._sum_dt: float = 0.0      # seconds
+        self._sum_dt: float = 0.0      # seconds (elapsed active time)
         self._last_ts_utc = dt_util.utcnow()
         self._current_value: float | int = 0
 
@@ -173,6 +174,15 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
     @property
     def native_value(self) -> float | int | None:
         return self._current_value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose elapsed active time that follows the same conditions and resets as the average."""
+        secs = int(self._sum_dt)
+        return {
+            "active_seconds": secs,
+            "active_time": str(timedelta(seconds=secs)),
+        }
 
     @property
     def device_info(self) -> dict[str, Any]:
