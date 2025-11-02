@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import Any, Optional
@@ -134,12 +135,19 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
 
     def _publish_now(self) -> None:
-        """Compute and publish immediately."""
+        """Compute and publish; always schedule on HA's event loop to avoid thread warnings."""
+        payload = self._compute_now()
         try:
-            payload = self._compute_now()
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop is self.hass.loop:
+            # Already in the HA loop
             self.async_set_updated_data(payload)
-        except Exception:
-            _LOGGER.exception("SolarDelta compute failed")
+        else:
+            # Schedule safely onto the HA loop
+            self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, payload)
 
     async def async_config_entry_first_refresh(self) -> None:
         """Set up listeners and publish initial data."""
@@ -149,6 +157,7 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if watch:
             def _on_change(event):
+                # Any relevant state change triggers recompute
                 self._publish_now()
 
             unsub = async_track_state_change_event(self.hass, watch, _on_change)
