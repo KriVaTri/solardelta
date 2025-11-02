@@ -103,7 +103,7 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
         self._store_key = f"{DOMAIN}_name_{self._name_slug}_{self._file_suffix}.json"
 
         self._sum_cov_dt: float = 0.0  # coverage * seconds
-        self._sum_dt: float = 0.0      # seconds
+        self._sum_dt: float = 0.0      # seconds (elapsed active time)
         self._last_ts_utc = dt_util.utcnow()
         self._current_value: float | int = 0
 
@@ -173,6 +173,18 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
     @property
     def native_value(self) -> float | int | None:
         return self._current_value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose elapsed active time as days, hours, and minutes."""
+        secs = int(self._sum_dt)
+        days, rem = divmod(secs, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes = rem // 60
+        return {
+            "active_seconds": secs,
+            "active_time": f"{days}d {hours}h {minutes}m",
+        }
 
     @property
     def device_info(self) -> dict[str, Any]:
