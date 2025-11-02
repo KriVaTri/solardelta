@@ -30,16 +30,16 @@ Average sensors (persistent):
 - solardelta <Name> avg session: time‑weighted average; holds when conditions drop; resets when the trigger changes to the first trigger string (provided during configuration) e.g. "on" from any known state.
 - solardelta <Name> avg year: time‑weighted average; holds when conditions drop; auto‑resets on New Year (local time). Also resettable via service solardelta.reset_avg_year.
 - solardelta <Name> avg lifetime: time‑weighted average; holds when conditions drop; never resets. Resettable via service solardelta.reset_avg_lifetime.
-- If an entry or the integration has been deleted, reinstalling the integration and/or an entry with the same name, will restore its previous data.
+- If an entry or the integration has been deleted, reinstalling the integration or creating an entry with the same name will restore its previous data.
 
 Active duration attributes (on each average sensor):
 - What it is: the total elapsed “active” time (in seconds and DD:HH:MM) that contributed to that sensor’s average.
-How it behaves: increases only while conditions are allowed (the same periods used to compute the average), and resets exactly when that average resets (session trigger, New Year, or the relevant reset service).
+- How it behaves: increases only while conditions are allowed (the same periods used to compute the average), and resets exactly when that average resets (session trigger, New Year, or the relevant reset service).
 - What it is not: it’s not wall‑clock time since the sensor was created; periods when conditions aren’t met do not count.
 
 Changing settings later:
 - Use Configure on the integration to change sensors/strings and scan interval.
-- The Name cannot be changed after initial setup. If you need a different name, delete the entry and create a new one or change it's friendly name.
+- The Name cannot be changed after initial setup. If you need a different name, delete the entry and create a new one, or change its friendly name.
 
 Installation:
 - Through HACS: add a custom repository. (https://github.com/KriVaTri/solardelta)
