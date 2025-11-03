@@ -1,5 +1,5 @@
 
-<img width="256" height="256" alt="icon" src="https://github.com/user-attachments/assets/2d4964a3-cef0-492d-ba09-0cf393341266" />
+<img width="50" height="50" alt="icon" src="https://github.com/user-attachments/assets/2d4964a3-cef0-492d-ba09-0cf393341266" />
 
 
 # SolarDelta (this is a beta version)
