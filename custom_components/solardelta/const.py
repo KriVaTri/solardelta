@@ -12,5 +12,9 @@ CONF_DEVICE_ENTITIES = "device_entities"  # legacy compat (list)
 CONF_NAME = "name"
 CONF_STATUS_ENTITY = "status_entity"
 CONF_STATUS_STRING = "status_string"
-CONF_TRIGGER_ENTITY = "trigger_entity"
-CONF_TRIGGER_STRING_1 = "trigger_string_1"
+CONF_RESET_ENTITY = "reset_entity"
+CONF_RESET_STRING = "reset_string"
+
+# Legacy keys for backward compatibility (do not use in new code)
+LEGACY_CONF_TRIGGER_ENTITY = "trigger_entity"
+LEGACY_CONF_TRIGGER_STRING_1 = "trigger_string_1"
