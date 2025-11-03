@@ -1,4 +1,4 @@
-# SolarDelta (this is a beta version and a project in progress)
+# SolarDelta (this is a beta version)
 
 [![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/KriVaTri/solardelta?include_prereleases)](https://github.com/KriVaTri/solardelta/releases)
 
