@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -12,6 +13,9 @@ from .const import (
     PLATFORMS,
     CONF_SOLAR_ENTITY,
     CONF_GRID_ENTITY,
+    CONF_GRID_SEPARATE,
+    CONF_GRID_IMPORT_ENTITY,
+    CONF_GRID_EXPORT_ENTITY,
     CONF_DEVICE_ENTITY,
     CONF_NAME,
     CONF_STATUS_ENTITY,
@@ -21,21 +25,24 @@ from .const import (
 )
 from .coordinator import SolarDeltaCoordinator
 
-# This integration is configured via config entries only (no YAML)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the solardelta domain (no global services; services are per-entry)."""
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up SolarDelta from a config entry and register per-entry services."""
     entry_name = entry.data.get(CONF_NAME) or entry.title or "SolarDelta"
 
     solar_entity = entry.options.get(CONF_SOLAR_ENTITY) or entry.data.get(CONF_SOLAR_ENTITY)
+
+    # Grid config
+    grid_separate = bool(entry.options.get(CONF_GRID_SEPARATE) if entry.options.get(CONF_GRID_SEPARATE) is not None else entry.data.get(CONF_GRID_SEPARATE) or False)
     grid_entity = entry.options.get(CONF_GRID_ENTITY) or entry.data.get(CONF_GRID_ENTITY)
+    grid_import = entry.options.get(CONF_GRID_IMPORT_ENTITY) or entry.data.get(CONF_GRID_IMPORT_ENTITY)
+    grid_export = entry.options.get(CONF_GRID_EXPORT_ENTITY) or entry.data.get(CONF_GRID_EXPORT_ENTITY)
+
     device_entity = entry.options.get(CONF_DEVICE_ENTITY) or entry.data.get(CONF_DEVICE_ENTITY)
 
     status_entity = entry.options.get(CONF_STATUS_ENTITY) or entry.data.get(CONF_STATUS_ENTITY)
@@ -52,6 +59,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass=hass,
         solar_entity=solar_entity,
         grid_entity=grid_entity,
+        grid_separate=grid_separate,
+        grid_import_entity=grid_import,
+        grid_export_entity=grid_export,
         device_entity=device_entity,
         status_entity=status_entity,
         status_string=status_string,
@@ -67,17 +77,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "name": entry_name,
         "status_entity": status_entity,
         "reset_entity": reset_entity,
-        # will be set by sensor platform setup:
-        # "avg_session_entity": ...
-        # "avg_year_entity": ...
-        # "avg_lifetime_entity": ...
-        # "avg_session_grid_entity": ...
-        # "avg_year_grid_entity": ...
-        # "avg_lifetime_grid_entity": ...
-        "per_entry_services": [],  # filled below
+        "per_entry_services": [],
     }
 
-    # Register per-entry services with a unique suffix based on the entry's name
     suffix = slugify(entry_name).lower() or slugify(entry.entry_id).lower()
 
     async def _handle_reset_session_entry(call: ServiceCall) -> None:
@@ -98,7 +100,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if ent and hasattr(ent, "async_reset_avg_lifetime"):
             await ent.async_reset_avg_lifetime()
 
-    # Grid-aware average resets
     async def _handle_reset_session_grid_entry(call: ServiceCall) -> None:
         data = hass.data[DOMAIN].get(entry.entry_id) or {}
         ent = data.get("avg_session_grid_entity")
@@ -117,7 +118,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if ent and hasattr(ent, "async_reset_avg_lifetime"):
             await ent.async_reset_avg_lifetime()
 
-    # New: reset all averages (original + grid)
     async def _handle_reset_all_averages_entry(call: ServiceCall) -> None:
         data = hass.data[DOMAIN].get(entry.entry_id) or {}
         pairs = [
@@ -143,11 +143,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "reset_avg_session_grid": f"reset_avg_session_grid_{suffix}",
         "reset_avg_year_grid": f"reset_avg_year_grid_{suffix}",
         "reset_avg_lifetime_grid": f"reset_avg_lifetime_grid_{suffix}",
-        # New combined reset
         "reset_all_averages": f"reset_all_averages_{suffix}",
     }
 
-    # Register and remember per-entry services so we can remove them on unload
     hass.services.async_register(DOMAIN, service_names["reset_avg_session"], _handle_reset_session_entry)
     hass.services.async_register(DOMAIN, service_names["reset_avg_year"], _handle_reset_year_entry)
     hass.services.async_register(DOMAIN, service_names["reset_avg_lifetime"], _handle_reset_lifetime_entry)
@@ -166,7 +164,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    # Remove per-entry services
     data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
     for svc in data.get("per_entry_services", []):
         try:
@@ -185,5 +182,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload the entry when options change (name is immutable)."""
     await hass.config_entries.async_reload(entry.entry_id)
