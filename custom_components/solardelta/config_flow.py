@@ -198,7 +198,7 @@ class SolarDeltaOptionsFlowHandler(OptionsFlowBase):
             if current_sep:
                 grid_detail = f"Import: {cur_import or '(not set)'}\nExport: {cur_export or '(not set)'}"
             else:
-                grid_detail = f"Grid: {cur_grid or '(not set)'}"
+                grid_detail = f"Grid power sensor: {cur_grid or '(not set)'}"
 
             schema = vol.Schema(
                 {vol.Required(CONF_GRID_SEPARATE, default=current_sep): selector({"boolean": {}})}
