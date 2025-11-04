@@ -70,6 +70,42 @@ class SolarCoverageSensor(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity
         }
 
 
+class SolarCoverageGridSensor(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
+    """Current grid-aware coverage percentage sensor (non-persistent)."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_icon = "mdi:percent"
+    _attr_has_entity_name = False
+
+    def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
+        super().__init__(coordinator)
+        self._entry_id = entry_id
+        self._display_name = display_name
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}_coverage_grid"
+
+    @property
+    def name(self) -> str | None:
+        # Same as original, with "grid" appended
+        return f"solardelta {self._display_name} coverage grid"
+
+    @property
+    def native_value(self) -> float | int | None:
+        data = self.coordinator.data or {}
+        cov = data.get("coverage_grid_pct")
+        if cov is None:
+            return None
+        return _round_coverage(float(cov))
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        return {
+            "identifiers": {(DOMAIN, self._entry_id)},
+            "name": "SolarDelta",
+            "manufacturer": "KriVaTri",
+            "model": "SolarDelta",
+        }
+
+
 class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
     """Base class for time-weighted average sensors."""
 
@@ -325,6 +361,107 @@ class SolarCoverageAvgLifetimeSensor(_AvgBase):
         await self._reset_to_zero()
 
 
+# Grid-aware average base (reads coverage_grid_pct)
+class _AvgBaseGrid(_AvgBase):
+    def _coverage_and_allowed(self) -> tuple[Optional[float | int], bool]:
+        data = self.coordinator.data or {}
+        return data.get("coverage_grid_pct"), bool(data.get("conditions_allowed", True))
+
+
+class SolarCoverageAvgSessionGridSensor(_AvgBaseGrid):
+    _file_suffix = "avg_session_grid"
+
+    def __init__(
+        self,
+        coordinator: SolarDeltaCoordinator,
+        entry_id: str,
+        display_name: str,
+        reset_entity: Optional[str],
+    ) -> None:
+        super().__init__(coordinator, entry_id, display_name)
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}_avg_session_grid"
+        self._reset_entity = reset_entity
+        self._last_reset_norm: Optional[str] = None
+
+    @property
+    def name(self) -> str | None:
+        return f"solardelta {self._display_name} avg session grid"
+
+    def _load_extra(self, data: dict) -> None:
+        self._last_reset_norm = data.get("last_reset_norm")
+
+    def _persist_extra(self) -> dict:
+        return {"last_reset_norm": self._last_reset_norm}
+
+    def _normalize_state(self, st: Optional[State]) -> Optional[str]:
+        if st is None:
+            return None
+        s = st.state
+        if s in (None, "unknown", "unavailable"):
+            return s
+        return str(s).strip().lower()
+
+    def _maybe_reset_on_update(self, now_utc) -> None:
+        if not self._reset_entity:
+            return
+        cur_state = self.coordinator.hass.states.get(self._reset_entity)
+        cur_norm = self._normalize_state(cur_state)
+        target = self.coordinator.reset_string
+        target_norm = str(target).strip().lower() if target else None
+        prev = self._last_reset_norm
+        if target_norm and prev not in (None, "unknown", "unavailable", target_norm) and cur_norm == target_norm:
+            self._sum_cov_dt = 0.0
+            self._sum_dt = 0.0
+            self._current_value = 0
+        self._last_reset_norm = cur_norm
+
+    async def async_reset_avg_session(self) -> None:
+        await self._reset_to_zero()
+
+
+class SolarCoverageAvgYearGridSensor(_AvgBaseGrid):
+    _file_suffix = "avg_year_grid"
+
+    def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
+        super().__init__(coordinator, entry_id, display_name)
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}_avg_year_grid"
+        self._year: Optional[int] = None
+
+    @property
+    def name(self) -> str | None:
+        return f"solardelta {self._display_name} avg year grid"
+
+    def _pre_update(self, now_utc) -> None:
+        now_local = dt_util.now()
+        current_year = now_local.year
+        if self._year is None:
+            self._year = current_year
+        elif self._year != current_year:
+            self._year = current_year
+            self._sum_cov_dt = 0.0
+            self._sum_dt = 0.0
+            self._current_value = 0
+
+    async def async_reset_avg_year(self) -> None:
+        self._year = dt_util.now().year
+        await self._reset_to_zero()
+
+
+class SolarCoverageAvgLifetimeGridSensor(_AvgBaseGrid):
+    _file_suffix = "avg_lifetime_grid"
+
+    def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
+        super().__init__(coordinator, entry_id, display_name)
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}_avg_lifetime_grid"
+
+    @property
+    def name(self) -> str | None:
+        return f"solardelta {self._display_name} avg lifetime grid"
+
+    async def async_reset_avg_lifetime(self) -> None:
+        await self._reset_to_zero()
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
     """Set up SolarDelta sensors for a config entry."""
     data = hass.data[DOMAIN][entry.entry_id]
@@ -332,10 +469,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     display_name: str = data.get("name") or "SolarDelta"
     reset_entity: Optional[str] = data.get("reset_entity")
 
-    # Core coverage sensor
+    # Core coverage sensors
     coverage = SolarCoverageSensor(coordinator, entry.entry_id, display_name)
+    coverage_grid = SolarCoverageGridSensor(coordinator, entry.entry_id, display_name)
 
-    # Averages
+    # Averages (original)
     avg_session = SolarCoverageAvgSessionSensor(
         coordinator=coordinator,
         entry_id=entry.entry_id,
@@ -353,9 +491,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         display_name=display_name,
     )
 
+    # Averages (grid-aware)
+    avg_session_grid = SolarCoverageAvgSessionGridSensor(
+        coordinator=coordinator,
+        entry_id=entry.entry_id,
+        display_name=display_name,
+        reset_entity=reset_entity,
+    )
+    avg_year_grid = SolarCoverageAvgYearGridSensor(
+        coordinator=coordinator,
+        entry_id=entry.entry_id,
+        display_name=display_name,
+    )
+    avg_lifetime_grid = SolarCoverageAvgLifetimeGridSensor(
+        coordinator=coordinator,
+        entry_id=entry.entry_id,
+        display_name=display_name,
+    )
+
     # Expose references for services
     data["avg_session_entity"] = avg_session
     data["avg_year_entity"] = avg_year
     data["avg_lifetime_entity"] = avg_lifetime
+    data["avg_session_grid_entity"] = avg_session_grid
+    data["avg_year_grid_entity"] = avg_year_grid
+    data["avg_lifetime_grid_entity"] = avg_lifetime_grid
 
-    async_add_entities([coverage, avg_session, avg_year, avg_lifetime])
+    async_add_entities(
+        [
+            coverage,
+            coverage_grid,
+            avg_session,
+            avg_year,
+            avg_lifetime,
+            avg_session_grid,
+            avg_year_grid,
+            avg_lifetime_grid,
+        ]
+    )
