@@ -196,7 +196,7 @@ class SolarDeltaOptionsFlowHandler(OptionsFlowBase):
                 "Separate grid import/export sensors" if current_sep else "Single net grid power sensor"
             )
             if current_sep:
-                grid_detail = f"Import: {cur_import or '(not set)'}\nExport: {cur_export or '(not set)'}"
+                grid_detail = f"Import power sensor: {cur_import or '(not set)'}\nExport power sensor: {cur_export or '(not set)'}"
             else:
                 grid_detail = f"Grid power sensor: {cur_grid or '(not set)'}"
 
