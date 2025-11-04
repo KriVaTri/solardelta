@@ -29,8 +29,8 @@ def _state_matches(state: Optional[State], candidates: list[str]) -> bool:
     return False
 
 
-def _to_watts(st: Optional[State]) -> Optional[float]:
-    """Parse a power value; supports W and kW; negatives -> 0; non-numeric -> None."""
+def _to_watts(st: Optional[State], *, allow_negative: bool = False) -> Optional[float]:
+    """Parse a power value; supports W and kW; negatives optional; non-numeric -> None."""
     if st is None:
         return None
     try:
@@ -40,7 +40,7 @@ def _to_watts(st: Optional[State]) -> Optional[float]:
     unit = str(st.attributes.get("unit_of_measurement", "")).strip().lower()
     if unit == "kw":
         val *= 1000.0
-    if val < 0:
+    if not allow_negative and val < 0:
         val = 0.0
     return val
 
@@ -50,7 +50,8 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         hass: HomeAssistant,
         solar_entity: str,
-        device_entity: str,
+        grid_entity: Optional[str] = None,
+        device_entity: str = "",
         status_entity: Optional[str] = None,
         status_string: Optional[str] = None,
         reset_entity: Optional[str] = None,
@@ -65,6 +66,7 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=(timedelta(seconds=int(scan_interval_seconds)) if periodic else None),
         )
         self._solar_entity = solar_entity
+        self._grid_entity = grid_entity
         self._device_entity = device_entity
         self._status_entity = status_entity
         self._status_string = status_string
@@ -77,6 +79,7 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Seed initial data to avoid None
         self.data = {
             "coverage_pct": 0.0,
+            "coverage_grid_pct": 0.0,
             "conditions_allowed": False,
             "status_ok": True,
             "reset_ok": True,
@@ -118,40 +121,71 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return allowed_by_status_only, status_ok, reset_ok
 
     def _compute_now(self) -> dict[str, Any]:
-        """Compute coverage from current states, honoring conditions:
-        - If status_string == "none": only require device power > 0.
-        - Else: status must match (if configured) AND device power > 0.
+        """Compute coverage from current states.
+
+        Legacy coverage (coverage_pct):
+          - Requires device power > 0 and status ok.
+          - coverage = clamp((solar / device) * 100, 0..100)
+
+        Grid-aware coverage (coverage_grid_pct):
+          - Requires device power > 0 and status ok.
+          - Let grid be (+) export, (-) import.
+          - Home load = solar - grid.
+          - coverage = clamp((solar / home_load) * 100, 0..100), with:
+              * If home_load <= 0 -> 100 (all load covered by solar)
+              * If solar <= 0 or home_load is None -> 0
         """
         allowed_by_status, status_ok, reset_ok = self._conditions_ok()
 
         solar_state = self.hass.states.get(self._solar_entity)
+        grid_state = self.hass.states.get(self._grid_entity) if self._grid_entity else None
         device_state = self.hass.states.get(self._device_entity)
 
         solar_w = _to_watts(solar_state)
+        grid_w = _to_watts(grid_state, allow_negative=True) if grid_state is not None else None
         device_w = _to_watts(device_state)
 
         # Device sensor must be > 0 to allow calculations/accumulation
         device_positive = device_w is not None and device_w > 0.0
-
         allowed = bool(allowed_by_status and device_positive)
 
+        # Legacy coverage (solar/device)
         if not allowed:
             pct: float | int = 0
         elif solar_w is None or device_w is None or device_w <= 0:
-            # Redundant guard; kept for safety
             pct = 0
         else:
             pct = (solar_w / device_w) * 100.0
-            # clamp
             if pct < 0.0:
                 pct = 0.0
             if pct > 100.0:
                 pct = 100.0
 
+        # Grid-aware coverage (solar/home_load)
+        if not allowed:
+            pct_grid: float | int = 0
+        elif solar_w is None or (grid_w is None):
+            pct_grid = 0
+        else:
+            # Home load derived from balance: Solar - HomeLoad = Grid  => HomeLoad = Solar - Grid
+            home_load = solar_w - grid_w
+            if home_load <= 0:
+                pct_grid = 100
+            elif solar_w <= 0:
+                pct_grid = 0
+            else:
+                pct_grid = (solar_w / home_load) * 100.0
+                if pct_grid < 0.0:
+                    pct_grid = 0.0
+                if pct_grid > 100.0:
+                    pct_grid = 100.0
+
         return {
             "solar_w": solar_w,
+            "grid_w": grid_w,
             "device_w": device_w,
             "coverage_pct": float(pct),
+            "coverage_grid_pct": float(pct_grid),
             "conditions_allowed": allowed,
             "status_ok": status_ok,
             "reset_ok": reset_ok,
@@ -178,7 +212,7 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # state changes; rely on the DataUpdateCoordinator schedule only.
         # When scan_interval == 0, operate in event-driven mode and recompute on changes.
         # Keep reset_entity in watch so session average can observe changes and reset timely.
-        watch = [self._solar_entity, self._device_entity, self._status_entity, self._reset_entity]
+        watch = [self._solar_entity, self._grid_entity, self._device_entity, self._status_entity, self._reset_entity]
         watch = [e for e in watch if e]
 
         if not self._periodic and watch:
