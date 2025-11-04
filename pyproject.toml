@@ -1,20 +1,7 @@
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py311"
+exclude = ["custom_components/solardelta/translations"]
 
 [tool.ruff.lint]
-# Core rule families:
-select = ["E", "F", "W", "I", "B", "UP", "SIM", "PL", "RUF"]
-ignore = ["D", "ANN"]  # no docstring/annotation style enforcement
-
-[tool.ruff.lint.per-file-ignores]
-# config flow complexity and branching are acceptable
-"custom_components/solardelta/config_flow.py" = ["PLR0912", "PLR0915"]
-# Coordinator has long signature and some branching that is intentional
-"custom_components/solardelta/coordinator.py" = ["PLR0912", "PLR0913"]
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-line-ending = "lf"
-skip-magic-trailing-comma = false
+select = ["E", "F", "W"]
