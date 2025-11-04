@@ -4,11 +4,20 @@
     "step": {
       "user": {
         "title": "SolarDelta",
-        "description": "Choose a name and select your sensors.",
+        "description": "Basic setup: choose a name and your grid mode.",
         "data": {
           "name": "Name",
+          "grid_separate": "Use separate grid import/export sensors"
+        }
+      },
+      "details": {
+        "title": "SolarDelta",
+        "description": "Select your sensors and strings.",
+        "data": {
           "solar_entity": "Solar power sensor",
-          "grid_entity": "Grid power sensor",
+          "grid_entity": "Grid power sensor (net, +export/−import)",
+          "grid_import_entity": "Grid import power sensor (positive only)",
+          "grid_export_entity": "Grid export power sensor (positive only)",
           "device_entity": "Device power sensor",
           "status_entity": "Status entity (sensor or binary_sensor)",
           "status_string": "Status match (string, 'none' = disabled)",
@@ -19,17 +28,29 @@
       }
     },
     "error": {
-      "name_in_use": "An entry with this name already exists. Please choose a different name."
+      "name_in_use": "An entry with this name already exists. Please choose a different name.",
+      "required": "This field is required.",
+      "required_if_separate": "Required when 'Use separate grid import/export sensors' is enabled.",
+      "required_if_not_separate": "Required when 'Use separate grid import/export sensors' is disabled."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "SolarDelta options",
-        "description": "Change sensors/strings and scan interval for:\n{entry_name}",
+        "description": "Choose grid mode for:\n{entry_name}\n\nCurrent grid mode: {grid_mode}\n{grid_detail}",
+        "data": {
+          "grid_separate": "Use separate grid import/export sensors"
+        }
+      },
+      "details": {
+        "title": "SolarDelta options",
+        "description": "Update sensors/strings and scan interval for:\n{entry_name}",
         "data": {
           "solar_entity": "Solar power sensor",
-          "grid_entity": "Grid power sensor",
+          "grid_entity": "Grid power sensor (net, +export/−import)",
+          "grid_import_entity": "Grid import power sensor (positive only)",
+          "grid_export_entity": "Grid export power sensor (positive only)",
           "device_entity": "Device power sensor",
           "status_entity": "Status entity (sensor or binary_sensor)",
           "status_string": "Status match (string, 'none' = disabled)",
