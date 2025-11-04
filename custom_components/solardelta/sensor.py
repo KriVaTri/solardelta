@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import PERCENTAGE
-from homeassistant.core import State, callback, HomeAssistant
+from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -13,24 +13,24 @@ from homeassistant.util import dt as dt_util, slugify
 from .const import DOMAIN
 from .coordinator import SolarDeltaCoordinator
 
+PCT_MAX = 100.0
+
 
 def _round_coverage(value: float) -> float | int:
     """Round to 1 decimal, except exact 0 or 100 shown without decimals."""
     # Clamp first
-    if value < 0.0:
-        value = 0.0
-    if value > 100.0:
-        value = 100.0
+    value = max(value, 0.0)
+    value = min(value, PCT_MAX)
 
     if value == 0.0:
         return 0
-    if value == 100.0:
+    if value == PCT_MAX:
         return 100
     # epsilon to reduce float artifacts
     v = round(value + 1e-9, 1)
     if v <= 0.0:
         return 0
-    if v >= 100.0:
+    if v >= PCT_MAX:
         return 100
     return v
 
@@ -166,16 +166,12 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
     def _persist_extra(self) -> dict:
         return {}
 
-    def _accumulate(self, coverage: Optional[float | int], dt_seconds: float, allowed: bool) -> None:
-        if not allowed:
-            return
-        if coverage is None:
+    def _accumulate(self, coverage: float | int | None, dt_seconds: float, allowed: bool) -> None:
+        if not allowed or coverage is None or dt_seconds <= 0:
             return
         try:
             cov = float(coverage)
         except (ValueError, TypeError):
-            return
-        if dt_seconds <= 0:
             return
         self._sum_cov_dt += cov * dt_seconds
         self._sum_dt += dt_seconds
@@ -233,7 +229,7 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
         self._last_ts_utc = now_utc
         return now_utc, dt_seconds
 
-    def _coverage_and_allowed(self) -> tuple[Optional[float | int], bool]:
+    def _coverage_and_allowed(self) -> tuple[float | int | None, bool]:
         data = self.coordinator.data or {}
         # Prefer new per-average gating, fallback to legacy flag if needed
         allowed = bool(
@@ -266,12 +262,12 @@ class SolarCoverageAvgSessionSensor(_AvgBase):
         coordinator: SolarDeltaCoordinator,
         entry_id: str,
         display_name: str,
-        reset_entity: Optional[str],
+        reset_entity: str | None,
     ) -> None:
         super().__init__(coordinator, entry_id, display_name)
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_avg_session"
         self._reset_entity = reset_entity
-        self._last_reset_norm: Optional[str] = None
+        self._last_reset_norm: str | None = None
 
     @property
     def name(self) -> str | None:
@@ -285,7 +281,7 @@ class SolarCoverageAvgSessionSensor(_AvgBase):
             "last_reset_norm": self._last_reset_norm,
         }
 
-    def _normalize_state(self, st: Optional[State]) -> Optional[str]:
+    def _normalize_state(self, st: State | None) -> str | None:
         if st is None:
             return None
         s = st.state
@@ -328,7 +324,7 @@ class SolarCoverageAvgYearSensor(_AvgBase):
     def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
         super().__init__(coordinator, entry_id, display_name)
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_avg_year"
-        self._year: Optional[int] = None
+        self._year: int | None = None
 
     @property
     def name(self) -> str | None:
@@ -367,7 +363,7 @@ class SolarCoverageAvgLifetimeSensor(_AvgBase):
 
 # Grid-aware average base (reads coverage_grid_pct)
 class _AvgBaseGrid(_AvgBase):
-    def _coverage_and_allowed(self) -> tuple[Optional[float | int], bool]:
+    def _coverage_and_allowed(self) -> tuple[float | int | None, bool]:
         data = self.coordinator.data or {}
         allowed = bool(
             data.get("conditions_allowed_grid", data.get("conditions_allowed", True))
@@ -383,12 +379,12 @@ class SolarCoverageAvgSessionGridSensor(_AvgBaseGrid):
         coordinator: SolarDeltaCoordinator,
         entry_id: str,
         display_name: str,
-        reset_entity: Optional[str],
+        reset_entity: str | None,
     ) -> None:
         super().__init__(coordinator, entry_id, display_name)
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_avg_session_grid"
         self._reset_entity = reset_entity
-        self._last_reset_norm: Optional[str] = None
+        self._last_reset_norm: str | None = None
 
     @property
     def name(self) -> str | None:
@@ -400,7 +396,7 @@ class SolarCoverageAvgSessionGridSensor(_AvgBaseGrid):
     def _persist_extra(self) -> dict:
         return {"last_reset_norm": self._last_reset_norm}
 
-    def _normalize_state(self, st: Optional[State]) -> Optional[str]:
+    def _normalize_state(self, st: State | None) -> str | None:
         if st is None:
             return None
         s = st.state
@@ -432,7 +428,7 @@ class SolarCoverageAvgYearGridSensor(_AvgBaseGrid):
     def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
         super().__init__(coordinator, entry_id, display_name)
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_avg_year_grid"
-        self._year: Optional[int] = None
+        self._year: int | None = None
 
     @property
     def name(self) -> str | None:
@@ -474,7 +470,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator: SolarDeltaCoordinator = data["coordinator"]
     display_name: str = data.get("name") or "SolarDelta"
-    reset_entity: Optional[str] = data.get("reset_entity")
+    reset_entity: str | None = data.get("reset_entity")
 
     # Core coverage sensors
     coverage = SolarCoverageSensor(coordinator, entry.entry_id, display_name)
