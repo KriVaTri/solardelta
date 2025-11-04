@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.const import PERCENTAGE
 from homeassistant.core import State, callback, HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -41,6 +41,7 @@ class SolarCoverageSensor(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_icon = "mdi:percent"
     _attr_has_entity_name = False
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
         super().__init__(coordinator)
@@ -76,6 +77,7 @@ class SolarCoverageGridSensor(CoordinatorEntity[SolarDeltaCoordinator], SensorEn
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_icon = "mdi:percent"
     _attr_has_entity_name = False
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
         super().__init__(coordinator)
@@ -113,6 +115,7 @@ class _AvgBase(CoordinatorEntity[SolarDeltaCoordinator], SensorEntity):
     _attr_icon = "mdi:percent"
     _file_suffix: str  # override in subclasses
     _attr_has_entity_name = False
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: SolarDeltaCoordinator, entry_id: str, display_name: str) -> None:
         super().__init__(coordinator)
