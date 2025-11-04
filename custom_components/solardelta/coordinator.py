@@ -69,7 +69,7 @@ def _compute_grid_pct(solar_w: float | None, grid_w: float | None, allowed_base:
 
 
 class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         hass: HomeAssistant,
         solar_entity: str,
@@ -128,7 +128,7 @@ class SolarDeltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return the configured reset string (single)."""
         return self._reset_string
 
-    def _conditions_ok(self) -> tuple[bool, bool, bool]:  # noqa: PLR0912
+    def _conditions_ok(self) -> tuple[bool, bool, bool]:
         """Return (allowed_by_status_only, status_ok, reset_ok).
 
         Rules:
