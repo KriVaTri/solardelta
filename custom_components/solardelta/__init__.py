@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
@@ -10,19 +9,19 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.util import slugify
 
 from .const import (
-    CONF_DEVICE_ENTITY,
-    CONF_GRID_ENTITY,
-    CONF_GRID_EXPORT_ENTITY,
-    CONF_GRID_IMPORT_ENTITY,
-    CONF_GRID_SEPARATE,
-    CONF_NAME,
-    CONF_RESET_ENTITY,
-    CONF_RESET_STRING,
-    CONF_SOLAR_ENTITY,
-    CONF_STATUS_ENTITY,
-    CONF_STATUS_STRING,
     DOMAIN,
     PLATFORMS,
+    CONF_SOLAR_ENTITY,
+    CONF_GRID_ENTITY,
+    CONF_GRID_SEPARATE,
+    CONF_GRID_IMPORT_ENTITY,
+    CONF_GRID_EXPORT_ENTITY,
+    CONF_DEVICE_ENTITY,
+    CONF_NAME,
+    CONF_STATUS_ENTITY,
+    CONF_STATUS_STRING,
+    CONF_RESET_ENTITY,
+    CONF_RESET_STRING,
 )
 from .coordinator import SolarDeltaCoordinator
 
@@ -39,11 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     solar_entity = entry.options.get(CONF_SOLAR_ENTITY) or entry.data.get(CONF_SOLAR_ENTITY)
 
     # Grid config
-    grid_separate = bool(
-        entry.options.get(CONF_GRID_SEPARATE)
-        if entry.options.get(CONF_GRID_SEPARATE) is not None
-        else entry.data.get(CONF_GRID_SEPARATE) or False
-    )
+    grid_separate = bool(entry.options.get(CONF_GRID_SEPARATE) if entry.options.get(CONF_GRID_SEPARATE) is not None else entry.data.get(CONF_GRID_SEPARATE) or False)
     grid_entity = entry.options.get(CONF_GRID_ENTITY) or entry.data.get(CONF_GRID_ENTITY)
     grid_import = entry.options.get(CONF_GRID_IMPORT_ENTITY) or entry.data.get(CONF_GRID_IMPORT_ENTITY)
     grid_export = entry.options.get(CONF_GRID_EXPORT_ENTITY) or entry.data.get(CONF_GRID_EXPORT_ENTITY)
@@ -85,7 +80,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "per_entry_services": [],
     }
 
-    # Dynamic per-entry services (keep existing behavior)
     suffix = slugify(entry_name).lower() or slugify(entry.entry_id).lower()
 
     async def _handle_reset_session_entry(call: ServiceCall) -> None:
@@ -155,9 +149,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, service_names["reset_avg_session"], _handle_reset_session_entry)
     hass.services.async_register(DOMAIN, service_names["reset_avg_year"], _handle_reset_year_entry)
     hass.services.async_register(DOMAIN, service_names["reset_avg_lifetime"], _handle_reset_lifetime_entry)
+
     hass.services.async_register(DOMAIN, service_names["reset_avg_session_grid"], _handle_reset_session_grid_entry)
     hass.services.async_register(DOMAIN, service_names["reset_avg_year_grid"], _handle_reset_year_grid_entry)
     hass.services.async_register(DOMAIN, service_names["reset_avg_lifetime_grid"], _handle_reset_lifetime_grid_entry)
+
     hass.services.async_register(DOMAIN, service_names["reset_all_averages"], _handle_reset_all_averages_entry)
 
     hass.data[DOMAIN][entry.entry_id]["per_entry_services"] = list(service_names.values())
@@ -170,14 +166,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
     for svc in data.get("per_entry_services", []):
-        with contextlib.suppress(Exception):
+        try:
             hass.services.async_remove(DOMAIN, svc)
+        except Exception:
+            pass
 
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        store = hass.data[DOMAIN].pop(entry.entry_id, None)
-        coordinator = store.get("coordinator") if isinstance(store, dict) else None
-        if coordinator:
+        data = hass.data[DOMAIN].pop(entry.entry_id, None)
+        if data and (coordinator := data.get("coordinator")):
             await coordinator.async_shutdown()
         if not hass.data[DOMAIN]:
             hass.data.pop(DOMAIN, None)
